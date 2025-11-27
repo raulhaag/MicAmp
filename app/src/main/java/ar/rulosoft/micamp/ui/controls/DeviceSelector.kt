@@ -153,7 +153,10 @@ fun DeviceItem(
         border = if (isSelected) androidx.compose.foundation.BorderStroke(
             2.dp,
             MaterialTheme.colorScheme.primary
-        ) else null,
+        ) else androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.secondary
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)

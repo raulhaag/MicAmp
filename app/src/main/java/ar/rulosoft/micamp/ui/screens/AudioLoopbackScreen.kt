@@ -1,5 +1,6 @@
 package ar.rulosoft.micamp.ui.screens
 
+import DspSettingsScreen
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +24,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +37,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ar.rulosoft.micamp.ui.SvgIcons
 import ar.rulosoft.micamp.ui.controls.DeviceSelector
+import ar.rulosoft.micamp.ui.controls.PresetsDialog
 import ar.rulosoft.micamp.ui.controls.SaveRecordingDialog
 import ar.rulosoft.micamp.ui.viewmodels.AudioViewModel
 import ar.rulosoft.micamp.ui.viewmodels.AudioViewModelFactory
@@ -86,6 +87,16 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
             }
         )
     }
+    
+    if (viewModel.showPresetsDialog) {
+        PresetsDialog(
+            presets = viewModel.presetList,
+            onLoad = { viewModel.loadPreset(it) },
+            onSave = { viewModel.savePreset(it) },
+            onDelete = { viewModel.deletePreset(it) },
+            onDismiss = { viewModel.showPresetsDialog = false }
+        )
+    }
 
     if (currentDspEffect != DspEffect.NONE) {
         BackHandler { currentDspEffect = DspEffect.NONE }
@@ -128,7 +139,47 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
             chorusDepth = viewModel.chorusDepth,
             onChorusDepthChange = { viewModel.chorusDepth = it },
             chorusMix = viewModel.chorusMix,
-            onChorusMixChange = { viewModel.chorusMix = it }
+            onChorusMixChange = { viewModel.chorusMix = it },
+            
+            noiseGateThreshold = viewModel.noiseGateThreshold,
+            onNoiseGateThresholdChange = { viewModel.noiseGateThreshold = it },
+            
+            flangerRate = viewModel.flangerRate,
+            onFlangerRateChange = { viewModel.flangerRate = it },
+            flangerDepth = viewModel.flangerDepth,
+            onFlangerDepthChange = { viewModel.flangerDepth = it },
+            flangerFeedback = viewModel.flangerFeedback,
+            onFlangerFeedbackChange = { viewModel.flangerFeedback = it },
+            flangerMix = viewModel.flangerMix,
+            onFlangerMixChange = { viewModel.flangerMix = it },
+
+            phaserRate = viewModel.phaserRate,
+            onPhaserRateChange = { viewModel.phaserRate = it },
+            phaserDepth = viewModel.phaserDepth,
+            onPhaserDepthChange = { viewModel.phaserDepth = it },
+            phaserFeedback = viewModel.phaserFeedback,
+            onPhaserFeedbackChange = { viewModel.phaserFeedback = it },
+            phaserMix = viewModel.phaserMix,
+            onPhaserMixChange = { viewModel.phaserMix = it },
+
+            bitcrusherDepth = viewModel.bitcrusherDepth,
+            onBitcrusherDepthChange = { viewModel.bitcrusherDepth = it },
+            bitcrusherRate = viewModel.bitcrusherRate,
+            onBitcrusherRateChange = { viewModel.bitcrusherRate = it },
+            bitcrusherMix = viewModel.bitcrusherMix,
+            onBitcrusherMixChange = { viewModel.bitcrusherMix = it },
+
+            limiterThreshold = viewModel.limiterThreshold,
+            onLimiterThresholdChange = { viewModel.limiterThreshold = it },
+
+            autoWahDepth = viewModel.autoWahDepth,
+            onAutoWahDepthChange = { viewModel.autoWahDepth = it },
+            autoWahRate = viewModel.autoWahRate,
+            onAutoWahRateChange = { viewModel.autoWahRate = it },
+            autoWahMix = viewModel.autoWahMix,
+            onAutoWahMixChange = { viewModel.autoWahMix = it },
+            autoWahResonance = viewModel.autoWahResonance,
+            onAutoWahResonanceChange = { viewModel.autoWahResonance = it }
         )
     } else if (showRecordingsScreen) {
         RecordingsScreen(
@@ -199,6 +250,7 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
 
                 } else {
                     // PERFORMANCE MODE
+                    
                     PerformanceScreen(
                         modifier = Modifier.weight(1f),
                         visualizerData = viewModel.visualizerData,
@@ -224,7 +276,26 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
                         isChorusEnabled = viewModel.isChorusEnabled,
                         onChorusEnabledChange = { viewModel.isChorusEnabled = it },
                         
-                        onOpenSettings = { currentDspEffect = it }
+                        isNoiseGateEnabled = viewModel.isNoiseGateEnabled,
+                        onNoiseGateEnabledChange = { viewModel.isNoiseGateEnabled = it },
+                        
+                        isFlangerEnabled = viewModel.isFlangerEnabled,
+                        onFlangerEnabledChange = { viewModel.isFlangerEnabled = it },
+
+                        isPhaserEnabled = viewModel.isPhaserEnabled,
+                        onPhaserEnabledChange = { viewModel.isPhaserEnabled = it },
+
+                        isBitcrusherEnabled = viewModel.isBitcrusherEnabled,
+                        onBitcrusherEnabledChange = { viewModel.isBitcrusherEnabled = it },
+
+                        isLimiterEnabled = viewModel.isLimiterEnabled,
+                        onLimiterEnabledChange = { viewModel.isLimiterEnabled = it },
+
+                        isAutoWahEnabled = viewModel.isAutoWahEnabled,
+                        onAutoWahEnabledChange = { viewModel.isAutoWahEnabled = it },
+                        
+                        onOpenSettings = { currentDspEffect = it },
+                        onPresetsClick = { viewModel.showPresetsDialog = true }
                     )
                 }
 

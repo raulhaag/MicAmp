@@ -55,6 +55,30 @@ class AudioEngine(
     val getDelayParams: () -> FloatArray, // [time(s), feedback(0-1), mix(0-1)]
     val isDelayEnabled: () -> Boolean,
     
+    // Noise Gate
+    val getNoiseGateThreshold: () -> Float,
+    val isNoiseGateEnabled: () -> Boolean,
+
+    // Flanger
+    val getFlangerParams: () -> FloatArray, // [rate, depth, mix, feedback]
+    val isFlangerEnabled: () -> Boolean,
+
+    // Phaser
+    val getPhaserParams: () -> FloatArray, // [rate, depth, mix, feedback]
+    val isPhaserEnabled: () -> Boolean,
+
+    // Bitcrusher
+    val getBitcrusherParams: () -> FloatArray, // [depth, rate, mix]
+    val isBitcrusherEnabled: () -> Boolean,
+
+    // Limiter
+    val getLimiterThreshold: () -> Float,
+    val isLimiterEnabled: () -> Boolean,
+
+    // AutoWah
+    val getAutoWahParams: () -> FloatArray, // [depth, rate, mix, resonance]
+    val isAutoWahEnabled: () -> Boolean,
+    
     val onRecordingError: (String) -> Unit,
     val onRecordingSaved: (String) -> Unit,
     val onRecordingProgress: (Long) -> Unit,
@@ -117,7 +141,13 @@ class AudioEngine(
             val compressor = Compressor(sampleRate)
             val tremolo = Tremolo(sampleRate)
             val chorus = Chorus(sampleRate)
-            
+            val noiseGate = NoiseGate(sampleRate)
+            val flanger = Flanger(sampleRate)
+            val phaser = Phaser(sampleRate)
+            val bitcrusher = Bitcrusher(sampleRate)
+            val limiter = Limiter(sampleRate)
+            val autoWah = AutoWah(sampleRate)
+
             var framesSinceLastVis = 0; val visBuffer = FloatArray(100)
 
             record.startRecording(); track.play()
@@ -135,13 +165,26 @@ class AudioEngine(
                     val compressorEnabled = isCompressorEnabled()
                     val tremoloEnabled = isTremoloEnabled()
                     val chorusEnabled = isChorusEnabled()
-                    
+                    val noiseGateEnabled = isNoiseGateEnabled()
+                    val flangerEnabled = isFlangerEnabled()
+                    val phaserEnabled = isPhaserEnabled()
+                    val bitcrusherEnabled = isBitcrusherEnabled()
+                    val limiterEnabled = isLimiterEnabled()
+                    val autoWahEnabled = isAutoWahEnabled()
+
                     // Params snapshots
                     val delayParams = if(delayEnabled) getDelayParams() else floatArrayOf(0f,0f,0f)
                     val reverbParams = if(reverbEnabled) getReverbParams() else floatArrayOf(0f,0f) // mix, size
                     val compParams = if(compressorEnabled) getCompressorParams() else floatArrayOf(1f,1f,1f) // thresh, ratio, makeup
                     val tremParams = if(tremoloEnabled) getTremoloParams() else floatArrayOf(0f,0f) // depth, rate
                     val chorusParams = if(chorusEnabled) getChorusParams() else floatArrayOf(0f,0f,0f) // rate, depth, mix
+                    val noiseGateThreshold = if(noiseGateEnabled) getNoiseGateThreshold() else 0f
+                    val flangerParams = if(flangerEnabled) getFlangerParams() else floatArrayOf(0f,0f,0f,0f) // rate, depth, mix, feedback
+                    val phaserParams = if(phaserEnabled) getPhaserParams() else floatArrayOf(0f,0f,0f,0f) // rate, depth, mix, feedback
+                    val bitcrusherParams = if(bitcrusherEnabled) getBitcrusherParams() else floatArrayOf(0f,0f,0f) // depth, rate, mix
+                    val limiterThreshold = if(limiterEnabled) getLimiterThreshold() else 1f
+                    val autoWahParams = if(autoWahEnabled) getAutoWahParams() else floatArrayOf(0f,0f,0f,0f) // depth, rate, mix, resonance
+
 
                     if (eqEnabled) {
                          for (i in 0 until 6) eqFilters[i].update(freqs[i], eqGains[i], 1.4f)
@@ -150,13 +193,28 @@ class AudioEngine(
                     for (i in 0 until read) {
                         var input = chunkBuffer[i].toFloat() / 32768f
                         
-                        // Order: Comp -> EQ -> Dist -> Trem -> Chorus -> Delay -> Reverb (Common chain)
+                        // Order: Gate -> Comp -> AutoWah -> Bitcrusher -> EQ -> Dist -> Phaser -> Flanger -> Trem -> Chorus -> Delay -> Reverb -> Limiter
+                        
+                        // 0. Noise Gate (First to remove noise before amplifying it)
+                        if (noiseGateEnabled) {
+                            input = noiseGate.process(input, noiseGateThreshold)
+                        }
                         
                         // 1. Compressor
                         if (compressorEnabled) {
                             input = compressor.process(input, compParams[0], compParams[1], compParams[2])
                         }
                         
+                        // 1.5 AutoWah
+                        if (autoWahEnabled) {
+                            input = autoWah.process(input, autoWahParams[0], autoWahParams[1], autoWahParams[2], autoWahParams[3])
+                        }
+
+                        // 1.8 Bitcrusher
+                        if (bitcrusherEnabled) {
+                            input = bitcrusher.process(input, bitcrusherParams[0], bitcrusherParams[1], bitcrusherParams[2])
+                        }
+
                         // 2. EQ
                         if (eqEnabled) {
                             for (f in eqFilters) input = f.process(input)
@@ -165,6 +223,16 @@ class AudioEngine(
                         // 3. Distortion
                         if (distortionEnabled && distAmt > 0.01f) { 
                             val drive = 1f + distAmt * 20f; val x = input * drive; input = (x / (1f + abs(x))) 
+                        }
+
+                        // 3.2 Phaser
+                        if (phaserEnabled) {
+                            input = phaser.process(input, phaserParams[0], phaserParams[1], phaserParams[3], phaserParams[2])
+                        }
+                        
+                        // 3.5 Flanger
+                        if (flangerEnabled) {
+                            input = flanger.process(input, flangerParams[0], flangerParams[1], flangerParams[2], flangerParams[3])
                         }
                         
                         // 4. Tremolo
@@ -199,6 +267,11 @@ class AudioEngine(
                         // 7. Reverb
                         if (reverbEnabled) {
                             input = reverb.process(input, reverbParams[0], reverbParams[1])
+                        }
+                        
+                        // 8. Limiter (Final safeguard)
+                        if (limiterEnabled) {
+                            input = limiter.process(input, limiterThreshold)
                         }
 
                         input *= vol

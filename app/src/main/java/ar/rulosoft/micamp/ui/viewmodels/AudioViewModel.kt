@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import ar.rulosoft.micamp.DPS.AudioEngine
+import ar.rulosoft.micamp.data.DspConfig
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -25,6 +26,7 @@ import java.io.File
 class AudioViewModel(private val context: Context) : ViewModel() {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val prefs = context.getSharedPreferences("MicAmpPrefs", Context.MODE_PRIVATE)
+    private val presetsPrefs = context.getSharedPreferences("MicAmpPresets", Context.MODE_PRIVATE)
 
     // Device State
     var inputDevices by mutableStateOf(listOf<AudioDeviceInfo>())
@@ -78,10 +80,49 @@ class AudioViewModel(private val context: Context) : ViewModel() {
     var chorusDepth by mutableFloatStateOf(2.0f) // ms (1 to 10)
     var chorusMix by mutableFloatStateOf(0.5f) // 0 to 1
 
+    // Noise Gate
+    var isNoiseGateEnabled by mutableStateOf(false)
+    var noiseGateThreshold by mutableFloatStateOf(0.05f) // 0 to 1
+
+    // Flanger
+    var isFlangerEnabled by mutableStateOf(false)
+    var flangerRate by mutableFloatStateOf(0.5f) // Hz (0.1 to 2)
+    var flangerDepth by mutableFloatStateOf(2.0f) // ms (1 to 5)
+    var flangerFeedback by mutableFloatStateOf(0.5f) // 0 to 0.9
+    var flangerMix by mutableFloatStateOf(0.5f) // 0 to 1
+    
+    // Phaser
+    var isPhaserEnabled by mutableStateOf(false)
+    var phaserRate by mutableFloatStateOf(1.0f) // Hz (0.1 to 10)
+    var phaserDepth by mutableFloatStateOf(0.5f) // 0 to 1
+    var phaserFeedback by mutableFloatStateOf(0.5f) // 0 to 0.9
+    var phaserMix by mutableFloatStateOf(0.5f) // 0 to 1
+
+    // Bitcrusher
+    var isBitcrusherEnabled by mutableStateOf(false)
+    var bitcrusherDepth by mutableFloatStateOf(0.5f) // 0 to 1 (16 to 1 bit)
+    var bitcrusherRate by mutableFloatStateOf(0.1f) // 0 to 1 (sample rate reduction)
+    var bitcrusherMix by mutableFloatStateOf(1.0f) // 0 to 1
+    
+    // Limiter
+    var isLimiterEnabled by mutableStateOf(false)
+    var limiterThreshold by mutableFloatStateOf(0.95f) // 0 to 1
+    
+    // AutoWah
+    var isAutoWahEnabled by mutableStateOf(false)
+    var autoWahDepth by mutableFloatStateOf(0.5f) // Range
+    var autoWahRate by mutableFloatStateOf(0.5f) // Sensitivity
+    var autoWahMix by mutableFloatStateOf(0.5f) // Mix
+    var autoWahResonance by mutableFloatStateOf(0.5f) // Resonance
+
     // File/Recording State
     var currentSaveDir by mutableStateOf<Uri?>(null)
     var lastRecordedPath by mutableStateOf("")
     var showSaveDialog by mutableStateOf(false)
+    
+    // Presets State
+    var presetList by mutableStateOf(listOf<String>())
+    var showPresetsDialog by mutableStateOf(false)
 
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = updateDevices()
@@ -90,6 +131,7 @@ class AudioViewModel(private val context: Context) : ViewModel() {
 
     init {
         loadSettings()
+        loadPresetList()
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
         updateDevices()
 
@@ -98,7 +140,6 @@ class AudioViewModel(private val context: Context) : ViewModel() {
             @OptIn(FlowPreview::class)
             snapshotFlow {
                 // Construct a list of all state values we want to persist
-                // This block runs whenever any read state object changes
                 listOf(
                     volume, distortion, isDistortionEnabled, isEqEnabled, 
                     isDelayEnabled, delayTime, delayFeedback, delayMix,
@@ -106,13 +147,129 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                     isCompressorEnabled, compThreshold, compRatio, compMakeup,
                     isTremoloEnabled, tremDepth, tremRate,
                     isChorusEnabled, chorusRate, chorusDepth, chorusMix,
+                    isNoiseGateEnabled, noiseGateThreshold,
+                    isFlangerEnabled, flangerRate, flangerDepth, flangerFeedback, flangerMix,
+                    isPhaserEnabled, phaserRate, phaserDepth, phaserFeedback, phaserMix,
+                    isBitcrusherEnabled, bitcrusherDepth, bitcrusherRate, bitcrusherMix,
+                    isLimiterEnabled, limiterThreshold,
+                    isAutoWahEnabled, autoWahDepth, autoWahRate, autoWahMix, autoWahResonance,
                     selectedInputDevice?.productName, selectedOutputDevice?.productName, currentSaveDir
                 ) + eqBands.toList()
-            }.debounce(500) // Debounce 500ms to avoid spamming SharedPreferences during slider drags
+            }.debounce(500) // Debounce 500ms
              .collectLatest {
                  saveSettings()
              }
         }
+    }
+    
+    private fun loadPresetList() {
+        presetList = presetsPrefs.all.keys.sorted()
+    }
+    
+    fun savePreset(name: String) {
+        val config = DspConfig(
+            name = name,
+            volume = volume,
+            distortion = distortion, isDistortionEnabled = isDistortionEnabled,
+            eqBands = eqBands.toList(), isEqEnabled = isEqEnabled,
+            delayTime = delayTime, delayFeedback = delayFeedback, delayMix = delayMix, isDelayEnabled = isDelayEnabled,
+            reverbMix = reverbMix, reverbSize = reverbSize, isReverbEnabled = isReverbEnabled,
+            compThreshold = compThreshold, compRatio = compRatio, compMakeup = compMakeup, isCompressorEnabled = isCompressorEnabled,
+            tremDepth = tremDepth, tremRate = tremRate, isTremoloEnabled = isTremoloEnabled,
+            chorusRate = chorusRate, chorusDepth = chorusDepth, chorusMix = chorusMix, isChorusEnabled = isChorusEnabled,
+            
+            noiseGateThreshold = noiseGateThreshold, isNoiseGateEnabled = isNoiseGateEnabled,
+            
+            flangerRate = flangerRate, flangerDepth = flangerDepth, flangerMix = flangerMix, flangerFeedback = flangerFeedback, isFlangerEnabled = isFlangerEnabled,
+            
+            phaserRate = phaserRate, phaserDepth = phaserDepth, phaserMix = phaserMix, phaserFeedback = phaserFeedback, isPhaserEnabled = isPhaserEnabled,
+            
+            bitcrusherDepth = bitcrusherDepth, bitcrusherRate = bitcrusherRate, bitcrusherMix = bitcrusherMix, isBitcrusherEnabled = isBitcrusherEnabled,
+            
+            limiterThreshold = limiterThreshold, isLimiterEnabled = isLimiterEnabled,
+            
+            autoWahDepth = autoWahDepth, autoWahRate = autoWahRate, autoWahMix = autoWahMix, autoWahResonance = autoWahResonance, isAutoWahEnabled = isAutoWahEnabled
+        )
+        presetsPrefs.edit().putString(name, config.toJson()).apply()
+        loadPresetList()
+    }
+    
+    fun loadPreset(name: String) {
+        val json = presetsPrefs.getString(name, null) ?: return
+        try {
+            val config = DspConfig.fromJson(json)
+            
+            // Apply
+            volume = config.volume
+            
+            distortion = config.distortion
+            isDistortionEnabled = config.isDistortionEnabled
+            
+            isEqEnabled = config.isEqEnabled
+            for(i in 0 until 6) {
+                if (i < config.eqBands.size) eqBands[i] = config.eqBands[i]
+            }
+            
+            delayTime = config.delayTime
+            delayFeedback = config.delayFeedback
+            delayMix = config.delayMix
+            isDelayEnabled = config.isDelayEnabled
+            
+            reverbMix = config.reverbMix
+            reverbSize = config.reverbSize
+            isReverbEnabled = config.isReverbEnabled
+            
+            compThreshold = config.compThreshold
+            compRatio = config.compRatio
+            compMakeup = config.compMakeup
+            isCompressorEnabled = config.isCompressorEnabled
+            
+            tremDepth = config.tremDepth
+            tremRate = config.tremRate
+            isTremoloEnabled = config.isTremoloEnabled
+            
+            chorusRate = config.chorusRate
+            chorusDepth = config.chorusDepth
+            chorusMix = config.chorusMix
+            isChorusEnabled = config.isChorusEnabled
+            
+            noiseGateThreshold = config.noiseGateThreshold
+            isNoiseGateEnabled = config.isNoiseGateEnabled
+            
+            flangerRate = config.flangerRate
+            flangerDepth = config.flangerDepth
+            flangerMix = config.flangerMix
+            flangerFeedback = config.flangerFeedback
+            isFlangerEnabled = config.isFlangerEnabled
+            
+            phaserRate = config.phaserRate
+            phaserDepth = config.phaserDepth
+            phaserMix = config.phaserMix
+            phaserFeedback = config.phaserFeedback
+            isPhaserEnabled = config.isPhaserEnabled
+            
+            bitcrusherDepth = config.bitcrusherDepth
+            bitcrusherRate = config.bitcrusherRate
+            bitcrusherMix = config.bitcrusherMix
+            isBitcrusherEnabled = config.isBitcrusherEnabled
+            
+            limiterThreshold = config.limiterThreshold
+            isLimiterEnabled = config.isLimiterEnabled
+            
+            autoWahDepth = config.autoWahDepth
+            autoWahRate = config.autoWahRate
+            autoWahMix = config.autoWahMix
+            autoWahResonance = config.autoWahResonance
+            isAutoWahEnabled = config.isAutoWahEnabled
+            
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    fun deletePreset(name: String) {
+        presetsPrefs.edit().remove(name).apply()
+        loadPresetList()
     }
 
     private fun loadSettings() {
@@ -129,7 +286,6 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         delayFeedback = prefs.getFloat("delay_feedback", 0.4f)
         delayMix = prefs.getFloat("delay_mix", 0.3f)
         
-        // New params load
         isReverbEnabled = prefs.getBoolean("reverb_enabled", false)
         reverbMix = prefs.getFloat("reverb_mix", 0.3f)
         reverbSize = prefs.getFloat("reverb_size", 0.5f)
@@ -147,6 +303,35 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         chorusRate = prefs.getFloat("chorus_rate", 1.0f)
         chorusDepth = prefs.getFloat("chorus_depth", 2.0f)
         chorusMix = prefs.getFloat("chorus_mix", 0.5f)
+        
+        isNoiseGateEnabled = prefs.getBoolean("noisegate_enabled", false)
+        noiseGateThreshold = prefs.getFloat("noisegate_thresh", 0.05f)
+        
+        isFlangerEnabled = prefs.getBoolean("flanger_enabled", false)
+        flangerRate = prefs.getFloat("flanger_rate", 0.5f)
+        flangerDepth = prefs.getFloat("flanger_depth", 2.0f)
+        flangerFeedback = prefs.getFloat("flanger_feedback", 0.5f)
+        flangerMix = prefs.getFloat("flanger_mix", 0.5f)
+        
+        isPhaserEnabled = prefs.getBoolean("phaser_enabled", false)
+        phaserRate = prefs.getFloat("phaser_rate", 1.0f)
+        phaserDepth = prefs.getFloat("phaser_depth", 0.5f)
+        phaserFeedback = prefs.getFloat("phaser_feedback", 0.5f)
+        phaserMix = prefs.getFloat("phaser_mix", 0.5f)
+        
+        isBitcrusherEnabled = prefs.getBoolean("bitcrusher_enabled", false)
+        bitcrusherDepth = prefs.getFloat("bitcrusher_depth", 0.5f)
+        bitcrusherRate = prefs.getFloat("bitcrusher_rate", 0.1f)
+        bitcrusherMix = prefs.getFloat("bitcrusher_mix", 1.0f)
+        
+        isLimiterEnabled = prefs.getBoolean("limiter_enabled", false)
+        limiterThreshold = prefs.getFloat("limiter_thresh", 0.95f)
+        
+        isAutoWahEnabled = prefs.getBoolean("autowah_enabled", false)
+        autoWahDepth = prefs.getFloat("autowah_depth", 0.5f)
+        autoWahRate = prefs.getFloat("autowah_rate", 0.5f)
+        autoWahMix = prefs.getFloat("autowah_mix", 0.5f)
+        autoWahResonance = prefs.getFloat("autowah_resonance", 0.5f)
         
         val savedUri = prefs.getString("save_dir_uri", null)
         if (savedUri != null) {
@@ -167,7 +352,6 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         editor.putFloat("delay_feedback", delayFeedback)
         editor.putFloat("delay_mix", delayMix)
         
-        // New params save
         editor.putBoolean("reverb_enabled", isReverbEnabled)
         editor.putFloat("reverb_mix", reverbMix)
         editor.putFloat("reverb_size", reverbSize)
@@ -185,6 +369,35 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         editor.putFloat("chorus_rate", chorusRate)
         editor.putFloat("chorus_depth", chorusDepth)
         editor.putFloat("chorus_mix", chorusMix)
+        
+        editor.putBoolean("noisegate_enabled", isNoiseGateEnabled)
+        editor.putFloat("noisegate_thresh", noiseGateThreshold)
+        
+        editor.putBoolean("flanger_enabled", isFlangerEnabled)
+        editor.putFloat("flanger_rate", flangerRate)
+        editor.putFloat("flanger_depth", flangerDepth)
+        editor.putFloat("flanger_feedback", flangerFeedback)
+        editor.putFloat("flanger_mix", flangerMix)
+        
+        editor.putBoolean("phaser_enabled", isPhaserEnabled)
+        editor.putFloat("phaser_rate", phaserRate)
+        editor.putFloat("phaser_depth", phaserDepth)
+        editor.putFloat("phaser_feedback", phaserFeedback)
+        editor.putFloat("phaser_mix", phaserMix)
+        
+        editor.putBoolean("bitcrusher_enabled", isBitcrusherEnabled)
+        editor.putFloat("bitcrusher_depth", bitcrusherDepth)
+        editor.putFloat("bitcrusher_rate", bitcrusherRate)
+        editor.putFloat("bitcrusher_mix", bitcrusherMix)
+        
+        editor.putBoolean("limiter_enabled", isLimiterEnabled)
+        editor.putFloat("limiter_thresh", limiterThreshold)
+        
+        editor.putBoolean("autowah_enabled", isAutoWahEnabled)
+        editor.putFloat("autowah_depth", autoWahDepth)
+        editor.putFloat("autowah_rate", autoWahRate)
+        editor.putFloat("autowah_mix", autoWahMix)
+        editor.putFloat("autowah_resonance", autoWahResonance)
         
         selectedInputDevice?.let { editor.putString("last_input_name", it.productName.toString()) }
         selectedOutputDevice?.let { editor.putString("last_output_name", it.productName.toString()) }
@@ -207,13 +420,10 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                 selectedInputDevice = inputs.find { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC } ?: inputs.firstOrNull()
             }
         } else {
-             // Check if current device is still valid
              val current = inputs.find { it.id == selectedInputDevice?.id }
              if (current != null) {
                  selectedInputDevice = current
              } else {
-                 // Device disconnected?
-                 // Try to recover by name or default
                  val savedInputName = prefs.getString("last_input_name", null)
                  selectedInputDevice = inputs.find { it.productName == savedInputName } ?: inputs.firstOrNull()
              }
@@ -231,12 +441,10 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                 selectedOutputDevice = outputs.find { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER } ?: outputs.firstOrNull()
             }
         } else {
-             // Check if current device is still valid
              val current = outputs.find { it.id == selectedOutputDevice?.id }
              if (current != null) {
                  selectedOutputDevice = current
              } else {
-                 // Device disconnected?
                  val savedOutputName = prefs.getString("last_output_name", null)
                  selectedOutputDevice = outputs.find { it.productName == savedOutputName } ?: outputs.firstOrNull()
              }
@@ -274,6 +482,24 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                 isTremoloEnabled = { isTremoloEnabled },
                 getChorusParams = { floatArrayOf(chorusRate, chorusDepth, chorusMix) },
                 isChorusEnabled = { isChorusEnabled },
+                
+                getNoiseGateThreshold = { noiseGateThreshold },
+                isNoiseGateEnabled = { isNoiseGateEnabled },
+                
+                getFlangerParams = { floatArrayOf(flangerRate, flangerDepth, flangerMix, flangerFeedback) },
+                isFlangerEnabled = { isFlangerEnabled },
+                
+                getPhaserParams = { floatArrayOf(phaserRate, phaserDepth, phaserMix, phaserFeedback) },
+                isPhaserEnabled = { isPhaserEnabled },
+                
+                getBitcrusherParams = { floatArrayOf(bitcrusherDepth, bitcrusherRate, bitcrusherMix) },
+                isBitcrusherEnabled = { isBitcrusherEnabled },
+                
+                getLimiterThreshold = { limiterThreshold },
+                isLimiterEnabled = { isLimiterEnabled },
+                
+                getAutoWahParams = { floatArrayOf(autoWahDepth, autoWahRate, autoWahMix, autoWahResonance) },
+                isAutoWahEnabled = { isAutoWahEnabled },
                 
                 onRecordingError = { isRecording = false },
                 onRecordingSaved = { },
