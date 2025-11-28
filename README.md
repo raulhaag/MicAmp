@@ -1,7 +1,5 @@
 # MicAmp - Procesador de Audio en Tiempo Real
 
-![Logo de MicAmp](app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp)
-
 MicAmp es una aplicación Android profesional desarrollada en **Kotlin** y **Jetpack Compose** que transforma tu dispositivo en un potente rack de efectos de audio en tiempo real. Diseñada para músicos (especialmente guitarristas), podcasters y entusiastas del sonido que buscan una solución portátil para procesar su audio con baja latencia.
 
 ---
@@ -11,7 +9,6 @@ MicAmp es una aplicación Android profesional desarrollada en **Kotlin** y **Jet
 | Pantalla Principal (Performance) |              Configuración de Efectos               |                   Grabaciones                    |
 |:--------------------------------:|:---------------------------------------------------:|:------------------------------------------------:|
 | ![Performance](docs/screenshots/performance.png) | ![Configuración](docs/screenshots/effectConfig.png) | ![Grabaciones](docs/screenshots/grabaciones.png) |
-*(Agrega tus capturas en la carpeta `docs/screenshots`)*
 
 ---
 
@@ -37,7 +34,7 @@ MicAmp incluye una colección completa de efectos digitales que puedes combinar 
     *   🟣 **Phaser:** Efecto de barrido de fase psicodélico y espacial.
     *   🟡 **Flanger:** Sonido de "avión jet" metálico mediante retardos muy cortos.
     *   💗 **Chorus:** Duplica y desafina ligeramente la señal para dar amplitud y grosor.
-    *   teal **Tremolo:** Fluctuación rítmica del volumen.
+    *   🔵 **Tremolo:** Fluctuación rítmica del volumen.
 *   **Espacio & Tiempo:**
     *   🟣 **Delay:** Eco digital con controles de tiempo, retroalimentación (repeticiones) y mezcla.
     *   🔘 **Reverb:** Simulación de reverberación para dar ambiente y profundidad.
