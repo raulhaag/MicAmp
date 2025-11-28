@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ar.rulosoft.micamp.data.EffectType
 import ar.rulosoft.micamp.ui.SvgIcons
 import ar.rulosoft.micamp.ui.controls.DeviceSelector
 import ar.rulosoft.micamp.ui.controls.PresetsDialog
@@ -225,18 +226,6 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
                 
                 if (!viewModel.isRunning) {
                     // CONFIGURATION MODE
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                         Text("Carpeta de grabaciones:", style = MaterialTheme.typography.bodySmall)
-                         Spacer(modifier = Modifier.width(8.dp))
-                         val dirName = if (viewModel.currentSaveDir != null) {
-                            DocumentFile.fromTreeUri(context, viewModel.currentSaveDir!!)?.name ?: "Desconocido"
-                        } else "Por defecto (App)"
-                        Text(dirName, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    }
-                    
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     DeviceSelector(modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
@@ -256,46 +245,47 @@ fun AudioLoopbackScreen(modifier: Modifier = Modifier) {
                         visualizerData = viewModel.visualizerData,
                         
                         isDistortionEnabled = viewModel.isDistortionEnabled,
-                        onDistortionEnabledChange = { viewModel.isDistortionEnabled = it },
+                        onDistortionEnabledChange = { viewModel.updateEffectStatus(EffectType.DISTORTION, it) },
                         
                         isEqEnabled = viewModel.isEqEnabled,
-                        onEqEnabledChange = { viewModel.isEqEnabled = it },
+                        onEqEnabledChange = { viewModel.updateEffectStatus(EffectType.EQ, it) },
                         
                         isDelayEnabled = viewModel.isDelayEnabled,
-                        onDelayEnabledChange = { viewModel.isDelayEnabled = it },
+                        onDelayEnabledChange = { viewModel.updateEffectStatus(EffectType.DELAY, it) },
                         
                         isReverbEnabled = viewModel.isReverbEnabled,
-                        onReverbEnabledChange = { viewModel.isReverbEnabled = it },
+                        onReverbEnabledChange = { viewModel.updateEffectStatus(EffectType.REVERB, it) },
                         
                         isCompressorEnabled = viewModel.isCompressorEnabled,
-                        onCompressorEnabledChange = { viewModel.isCompressorEnabled = it },
+                        onCompressorEnabledChange = { viewModel.updateEffectStatus(EffectType.COMPRESSOR, it) },
                         
                         isTremoloEnabled = viewModel.isTremoloEnabled,
-                        onTremoloEnabledChange = { viewModel.isTremoloEnabled = it },
+                        onTremoloEnabledChange = { viewModel.updateEffectStatus(EffectType.TREMOLO, it) },
                         
                         isChorusEnabled = viewModel.isChorusEnabled,
-                        onChorusEnabledChange = { viewModel.isChorusEnabled = it },
+                        onChorusEnabledChange = { viewModel.updateEffectStatus(EffectType.CHORUS, it) },
                         
                         isNoiseGateEnabled = viewModel.isNoiseGateEnabled,
-                        onNoiseGateEnabledChange = { viewModel.isNoiseGateEnabled = it },
+                        onNoiseGateEnabledChange = { viewModel.updateEffectStatus(EffectType.NOISE_GATE, it) },
                         
                         isFlangerEnabled = viewModel.isFlangerEnabled,
-                        onFlangerEnabledChange = { viewModel.isFlangerEnabled = it },
+                        onFlangerEnabledChange = { viewModel.updateEffectStatus(EffectType.FLANGER, it) },
 
                         isPhaserEnabled = viewModel.isPhaserEnabled,
-                        onPhaserEnabledChange = { viewModel.isPhaserEnabled = it },
+                        onPhaserEnabledChange = { viewModel.updateEffectStatus(EffectType.PHASER, it) },
 
                         isBitcrusherEnabled = viewModel.isBitcrusherEnabled,
-                        onBitcrusherEnabledChange = { viewModel.isBitcrusherEnabled = it },
+                        onBitcrusherEnabledChange = { viewModel.updateEffectStatus(EffectType.BITCRUSHER, it) },
 
                         isLimiterEnabled = viewModel.isLimiterEnabled,
-                        onLimiterEnabledChange = { viewModel.isLimiterEnabled = it },
+                        onLimiterEnabledChange = { viewModel.updateEffectStatus(EffectType.LIMITER, it) },
 
                         isAutoWahEnabled = viewModel.isAutoWahEnabled,
-                        onAutoWahEnabledChange = { viewModel.isAutoWahEnabled = it },
+                        onAutoWahEnabledChange = { viewModel.updateEffectStatus(EffectType.AUTO_WAH, it) },
                         
                         onOpenSettings = { currentDspEffect = it },
-                        onPresetsClick = { viewModel.showPresetsDialog = true }
+                        onPresetsClick = { viewModel.showPresetsDialog = true },
+                        getEffectIndex = { viewModel.getActiveEffectIndex(it) }
                     )
                 }
 

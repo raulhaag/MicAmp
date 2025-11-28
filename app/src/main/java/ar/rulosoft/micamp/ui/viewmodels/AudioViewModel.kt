@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import ar.rulosoft.micamp.DPS.AudioEngine
 import ar.rulosoft.micamp.data.DspConfig
+import ar.rulosoft.micamp.data.EffectType
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -40,6 +41,24 @@ class AudioViewModel(private val context: Context) : ViewModel() {
     var recordingSeconds by mutableLongStateOf(0L)
     var visualizerData by mutableStateOf(FloatArray(50))
     private var engine: AudioEngine? = null
+    
+    // Effect Order (Signal Chain)
+    // Default order
+    val effectOrder = mutableStateListOf(
+        EffectType.NOISE_GATE,
+        EffectType.COMPRESSOR,
+        EffectType.AUTO_WAH,
+        EffectType.BITCRUSHER,
+        EffectType.EQ,
+        EffectType.DISTORTION,
+        EffectType.PHASER,
+        EffectType.FLANGER,
+        EffectType.TREMOLO,
+        EffectType.CHORUS,
+        EffectType.DELAY,
+        EffectType.REVERB,
+        EffectType.LIMITER
+    )
 
     // DSP State
     var volume by mutableFloatStateOf(1.0f)
@@ -154,7 +173,7 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                     isLimiterEnabled, limiterThreshold,
                     isAutoWahEnabled, autoWahDepth, autoWahRate, autoWahMix, autoWahResonance,
                     selectedInputDevice?.productName, selectedOutputDevice?.productName, currentSaveDir
-                ) + eqBands.toList()
+                ) + eqBands.toList() + effectOrder.toList()
             }.debounce(500) // Debounce 500ms
              .collectLatest {
                  saveSettings()
@@ -188,7 +207,9 @@ class AudioViewModel(private val context: Context) : ViewModel() {
             
             limiterThreshold = limiterThreshold, isLimiterEnabled = isLimiterEnabled,
             
-            autoWahDepth = autoWahDepth, autoWahRate = autoWahRate, autoWahMix = autoWahMix, autoWahResonance = autoWahResonance, isAutoWahEnabled = isAutoWahEnabled
+            autoWahDepth = autoWahDepth, autoWahRate = autoWahRate, autoWahMix = autoWahMix, autoWahResonance = autoWahResonance, isAutoWahEnabled = isAutoWahEnabled,
+            
+            effectOrder = effectOrder.toList()
         )
         presetsPrefs.edit().putString(name, config.toJson()).apply()
         loadPresetList()
@@ -198,6 +219,12 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         val json = presetsPrefs.getString(name, null) ?: return
         try {
             val config = DspConfig.fromJson(json)
+            
+            // Apply Order first? Or just apply params
+            if (config.effectOrder.isNotEmpty()) {
+                effectOrder.clear()
+                effectOrder.addAll(config.effectOrder)
+            }
             
             // Apply
             volume = config.volume
@@ -277,6 +304,23 @@ class AudioViewModel(private val context: Context) : ViewModel() {
             eqBands[i] = prefs.getFloat("eq_band_$i", 0f)
         }
         volume = prefs.getFloat("master_volume", 1.0f)
+        
+        // Load Order
+        val orderStr = prefs.getString("effect_order", null)
+        if (orderStr != null) {
+            try {
+                val list = orderStr.split(",").mapNotNull { 
+                    try { EffectType.valueOf(it) } catch(e: Exception) { null } 
+                }
+                if (list.isNotEmpty()) {
+                    // Ensure we have all effects, append missing ones at end
+                    val currentSet = list.toSet()
+                    val missing = EffectType.values().filter { !currentSet.contains(it) }
+                    effectOrder.clear()
+                    effectOrder.addAll(list + missing)
+                }
+            } catch(e: Exception) { e.printStackTrace() }
+        }
 
         isDistortionEnabled = prefs.getBoolean("distortion_enabled", false)
         distortion = prefs.getFloat("distortion_value", 0.0f)
@@ -343,6 +387,9 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         val editor = prefs.edit()
         eqBands.forEachIndexed { index, gain -> editor.putFloat("eq_band_$index", gain) }
         editor.putFloat("master_volume", volume)
+        
+        // Save Order
+        editor.putString("effect_order", effectOrder.joinToString(",") { it.name })
 
         editor.putBoolean("distortion_enabled", isDistortionEnabled)
         editor.putFloat("distortion_value", distortion)
@@ -467,6 +514,9 @@ class AudioViewModel(private val context: Context) : ViewModel() {
                 inputDevice = selectedInputDevice!!,
                 outputDevice = selectedOutputDevice!!,
                 getVolume = { volume },
+                
+                getEffectOrder = { effectOrder.toList() },
+                
                 getDistortion = { distortion },
                 getEqGains = { eqBands.toFloatArray() },
                 isDistortionEnabled = { isDistortionEnabled },
@@ -540,6 +590,58 @@ class AudioViewModel(private val context: Context) : ViewModel() {
         stopEngine()
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         saveSettings()
+    }
+    
+    // Moves the effect to the end of the chain if enabling
+    fun updateEffectStatus(effect: EffectType, isEnabled: Boolean) {
+        if (isEnabled) {
+            // Move to end of chain (highest priority/last processed)
+            effectOrder.remove(effect)
+            effectOrder.add(effect)
+        }
+        
+        // Update the boolean state
+        when (effect) {
+            EffectType.NOISE_GATE -> isNoiseGateEnabled = isEnabled
+            EffectType.COMPRESSOR -> isCompressorEnabled = isEnabled
+            EffectType.AUTO_WAH -> isAutoWahEnabled = isEnabled
+            EffectType.BITCRUSHER -> isBitcrusherEnabled = isEnabled
+            EffectType.EQ -> isEqEnabled = isEnabled
+            EffectType.DISTORTION -> isDistortionEnabled = isEnabled
+            EffectType.PHASER -> isPhaserEnabled = isEnabled
+            EffectType.FLANGER -> isFlangerEnabled = isEnabled
+            EffectType.TREMOLO -> isTremoloEnabled = isEnabled
+            EffectType.CHORUS -> isChorusEnabled = isEnabled
+            EffectType.DELAY -> isDelayEnabled = isEnabled
+            EffectType.REVERB -> isReverbEnabled = isEnabled
+            EffectType.LIMITER -> isLimiterEnabled = isEnabled
+        }
+    }
+    
+    // Get the index (1-based) of the effect in the active chain
+    // Returns 0 if not active
+    fun getActiveEffectIndex(effect: EffectType): Int {
+        // Filter only enabled effects from the master order list
+        val activeEffects = effectOrder.filter { 
+            when(it) {
+                EffectType.NOISE_GATE -> isNoiseGateEnabled
+                EffectType.COMPRESSOR -> isCompressorEnabled
+                EffectType.AUTO_WAH -> isAutoWahEnabled
+                EffectType.BITCRUSHER -> isBitcrusherEnabled
+                EffectType.EQ -> isEqEnabled
+                EffectType.DISTORTION -> isDistortionEnabled
+                EffectType.PHASER -> isPhaserEnabled
+                EffectType.FLANGER -> isFlangerEnabled
+                EffectType.TREMOLO -> isTremoloEnabled
+                EffectType.CHORUS -> isChorusEnabled
+                EffectType.DELAY -> isDelayEnabled
+                EffectType.REVERB -> isReverbEnabled
+                EffectType.LIMITER -> isLimiterEnabled
+            }
+        }
+        
+        val index = activeEffects.indexOf(effect)
+        return if (index >= 0) index + 1 else 0
     }
 }
 

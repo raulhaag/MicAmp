@@ -1,5 +1,8 @@
 package ar.rulosoft.micamp.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -18,7 +21,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -26,6 +33,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +49,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ar.rulosoft.micamp.data.EffectType
 import ar.rulosoft.micamp.ui.SvgIcons
 
 // Enum for identifying which configuration we are viewing
@@ -91,7 +102,9 @@ fun PerformanceScreen(
     onAutoWahEnabledChange: (Boolean) -> Unit,
     
     onOpenSettings: (DspEffect) -> Unit,
-    onPresetsClick: () -> Unit
+    onPresetsClick: () -> Unit,
+    
+    getEffectIndex: (EffectType) -> Int
 ) {
     Column(
         modifier = modifier
@@ -153,175 +166,218 @@ fun PerformanceScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // --- DSP BUTTONS (Scrollable) ---
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                // Row 0: Noise Gate & Auto Wah
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DspButton(
-                        icon = SvgIcons.NoiseGate,
-                        description = "Noise Gate",
-                        isEnabled = isNoiseGateEnabled,
-                        activeColor = Color(0xFF388E3C), // Green
-                        onClick = { onNoiseGateEnabledChange(!isNoiseGateEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.NOISE_GATE) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    DspButton(
-                        icon = SvgIcons.AutoWah,
-                        description = "Auto Wah",
-                        isEnabled = isAutoWahEnabled,
-                        activeColor = Color(0xFFFFD600), // Yellow
-                        onClick = { onAutoWahEnabledChange(!isAutoWahEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.AUTO_WAH) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+        
+        val listState = rememberLazyListState()
+        val showScrollIndicator by remember {
+            derivedStateOf {
+                listState.canScrollForward
             }
+        }
 
-            item {
-                // Row 1: Compressor & Limiter
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DspButton(
-                        icon = SvgIcons.Compressor,
-                        description = "Compresor",
-                        isEnabled = isCompressorEnabled,
-                        activeColor = Color(0xFFFFA000), // Amber
-                        onClick = { onCompressorEnabledChange(!isCompressorEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.COMPRESSOR) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    DspButton(
-                        icon = SvgIcons.Limiter,
-                        description = "Limitador",
-                        isEnabled = isLimiterEnabled,
-                        activeColor = Color(0xFFE65100), // Dark Orange
-                        onClick = { onLimiterEnabledChange(!isLimiterEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.LIMITER) },
-                        modifier = Modifier.weight(1f)
-                    )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    // Row 0: Noise Gate & Auto Wah
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DspButton(
+                            icon = SvgIcons.NoiseGate,
+                            description = "Noise Gate",
+                            isEnabled = isNoiseGateEnabled,
+                            orderIndex = getEffectIndex(EffectType.NOISE_GATE),
+                            activeColor = Color(0xFF388E3C), // Green
+                            onClick = { onNoiseGateEnabledChange(!isNoiseGateEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.NOISE_GATE) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        
+                        DspButton(
+                            icon = SvgIcons.AutoWah,
+                            description = "Auto Wah",
+                            isEnabled = isAutoWahEnabled,
+                            orderIndex = getEffectIndex(EffectType.AUTO_WAH),
+                            activeColor = Color(0xFFFFD600), // Yellow
+                            onClick = { onAutoWahEnabledChange(!isAutoWahEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.AUTO_WAH) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
-            }
 
-            item {
-                // Row 2: Bitcrusher & Distortion
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DspButton(
-                        icon = SvgIcons.Bitcrusher,
-                        description = "Bitcrusher",
-                        isEnabled = isBitcrusherEnabled,
-                        activeColor = Color(0xFF5D4037), // Brown
-                        onClick = { onBitcrusherEnabledChange(!isBitcrusherEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.BITCRUSHER) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    DspButton(
-                        icon = SvgIcons.Distortion,
-                        description = "Distorsión",
-                        isEnabled = isDistortionEnabled,
-                        activeColor = Color(0xFFD32F2F), // Red
-                        onClick = { onDistortionEnabledChange(!isDistortionEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.DISTORTION) },
-                        modifier = Modifier.weight(1f)
-                    )
+                item {
+                    // Row 1: Compressor & Limiter
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DspButton(
+                            icon = SvgIcons.Compressor,
+                            description = "Compresor",
+                            isEnabled = isCompressorEnabled,
+                            orderIndex = getEffectIndex(EffectType.COMPRESSOR),
+                            activeColor = Color(0xFFFFA000), // Amber
+                            onClick = { onCompressorEnabledChange(!isCompressorEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.COMPRESSOR) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        DspButton(
+                            icon = SvgIcons.Limiter,
+                            description = "Limitador",
+                            isEnabled = isLimiterEnabled,
+                            orderIndex = getEffectIndex(EffectType.LIMITER),
+                            activeColor = Color(0xFFE65100), // Dark Orange
+                            onClick = { onLimiterEnabledChange(!isLimiterEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.LIMITER) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
-            }
 
-            item {
-                // Row 3: EQ & Tremolo
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                     DspButton(
-                        icon = SvgIcons.Equalizer,
-                        description = "Ecualizador",
-                        isEnabled = isEqEnabled,
-                        activeColor = Color(0xFF1976D2), // Blue
-                        onClick = { onEqEnabledChange(!isEqEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.EQ) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    DspButton(
-                        icon = SvgIcons.Tremolo,
-                        description = "Tremolo",
-                        isEnabled = isTremoloEnabled,
-                        activeColor = Color(0xFF00796B), // Teal
-                        onClick = { onTremoloEnabledChange(!isTremoloEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.TREMOLO) },
-                        modifier = Modifier.weight(1f)
-                    )
+                item {
+                    // Row 2: Bitcrusher & Distortion
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DspButton(
+                            icon = SvgIcons.Bitcrusher,
+                            description = "Bitcrusher",
+                            isEnabled = isBitcrusherEnabled,
+                            orderIndex = getEffectIndex(EffectType.BITCRUSHER),
+                            activeColor = Color(0xFF5D4037), // Brown
+                            onClick = { onBitcrusherEnabledChange(!isBitcrusherEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.BITCRUSHER) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        
+                        DspButton(
+                            icon = SvgIcons.Distortion,
+                            description = "Distorsión",
+                            isEnabled = isDistortionEnabled,
+                            orderIndex = getEffectIndex(EffectType.DISTORTION),
+                            activeColor = Color(0xFFD32F2F), // Red
+                            onClick = { onDistortionEnabledChange(!isDistortionEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.DISTORTION) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
-            }
 
-            item {
-                // Row 4: Phaser & Flanger
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DspButton(
-                        icon = SvgIcons.Phaser,
-                        description = "Phaser",
-                        isEnabled = isPhaserEnabled,
-                        activeColor = Color(0xFF673AB7), // Deep Purple
-                        onClick = { onPhaserEnabledChange(!isPhaserEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.PHASER) },
-                        modifier = Modifier.weight(1f)
-                    )
+                item {
+                    // Row 3: EQ & Tremolo
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                         DspButton(
+                            icon = SvgIcons.Equalizer,
+                            description = "Ecualizador",
+                            isEnabled = isEqEnabled,
+                            orderIndex = getEffectIndex(EffectType.EQ),
+                            activeColor = Color(0xFF1976D2), // Blue
+                            onClick = { onEqEnabledChange(!isEqEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.EQ) },
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    DspButton(
-                        icon = SvgIcons.Flanger,
-                        description = "Flanger",
-                        isEnabled = isFlangerEnabled,
-                        activeColor = Color(0xFFFBC02D), // Yellow
-                        onClick = { onFlangerEnabledChange(!isFlangerEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.FLANGER) },
-                        modifier = Modifier.weight(1f)
-                    )
+                        DspButton(
+                            icon = SvgIcons.Tremolo,
+                            description = "Tremolo",
+                            isEnabled = isTremoloEnabled,
+                            orderIndex = getEffectIndex(EffectType.TREMOLO),
+                            activeColor = Color(0xFF00796B), // Teal
+                            onClick = { onTremoloEnabledChange(!isTremoloEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.TREMOLO) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                item {
+                    // Row 4: Phaser & Flanger
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DspButton(
+                            icon = SvgIcons.Phaser,
+                            description = "Phaser",
+                            isEnabled = isPhaserEnabled,
+                            orderIndex = getEffectIndex(EffectType.PHASER),
+                            activeColor = Color(0xFF673AB7), // Deep Purple
+                            onClick = { onPhaserEnabledChange(!isPhaserEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.PHASER) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        DspButton(
+                            icon = SvgIcons.Flanger,
+                            description = "Flanger",
+                            isEnabled = isFlangerEnabled,
+                            orderIndex = getEffectIndex(EffectType.FLANGER),
+                            activeColor = Color(0xFFFBC02D), // Yellow
+                            onClick = { onFlangerEnabledChange(!isFlangerEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.FLANGER) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                
+                item {
+                    // Row 5: Chorus & Delay
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                         DspButton(
+                            icon = SvgIcons.Chorus,
+                            description = "Chorus",
+                            isEnabled = isChorusEnabled,
+                            orderIndex = getEffectIndex(EffectType.CHORUS),
+                            activeColor = Color(0xFFC2185B), // Pink
+                            onClick = { onChorusEnabledChange(!isChorusEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.CHORUS) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        DspButton(
+                            icon = SvgIcons.Delay,
+                            description = "Delay",
+                            isEnabled = isDelayEnabled,
+                            orderIndex = getEffectIndex(EffectType.DELAY),
+                            activeColor = Color(0xFF7B1FA2), // Purple
+                            onClick = { onDelayEnabledChange(!isDelayEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.DELAY) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                
+                item {
+                    // Row 6: Reverb
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DspButton(
+                            icon = SvgIcons.Reverb,
+                            description = "Reverb",
+                            isEnabled = isReverbEnabled,
+                            orderIndex = getEffectIndex(EffectType.REVERB),
+                            activeColor = Color(0xFF455A64), // Blue Grey
+                            onClick = { onReverbEnabledChange(!isReverbEnabled) },
+                            onLongClick = { onOpenSettings(DspEffect.REVERB) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
             
-            item {
-                // Row 5: Chorus & Delay
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                     DspButton(
-                        icon = SvgIcons.Chorus,
-                        description = "Chorus",
-                        isEnabled = isChorusEnabled,
-                        activeColor = Color(0xFFC2185B), // Pink
-                        onClick = { onChorusEnabledChange(!isChorusEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.CHORUS) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    DspButton(
-                        icon = SvgIcons.Delay,
-                        description = "Delay",
-                        isEnabled = isDelayEnabled,
-                        activeColor = Color(0xFF7B1FA2), // Purple
-                        onClick = { onDelayEnabledChange(!isDelayEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.DELAY) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            
-            item {
-                // Row 6: Reverb
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DspButton(
-                        icon = SvgIcons.Reverb,
-                        description = "Reverb",
-                        isEnabled = isReverbEnabled,
-                        activeColor = Color(0xFF455A64), // Blue Grey
-                        onClick = { onReverbEnabledChange(!isReverbEnabled) },
-                        onLongClick = { onOpenSettings(DspEffect.REVERB) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showScrollIndicator,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                 Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = "More effects",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), shape = CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), CircleShape)
+                 )
             }
         }
     }
@@ -333,6 +389,7 @@ fun DspButton(
     icon: ImageVector,
     description: String,
     isEnabled: Boolean,
+    orderIndex: Int,
     activeColor: Color,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -363,6 +420,19 @@ fun DspButton(
             ),
         contentAlignment = Alignment.Center
     ) {
+        // Order Number
+        if (isEnabled && orderIndex > 0) {
+            Text(
+                text = orderIndex.toString(),
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 6.dp, top = 4.dp)
+            )
+        }
+        
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = icon,

@@ -11,6 +11,7 @@ import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Process
+import ar.rulosoft.micamp.data.EffectType
 import ar.rulosoft.micamp.tools.updateWavHeader
 import ar.rulosoft.micamp.tools.writeWavHeader
 import java.io.File
@@ -30,6 +31,10 @@ class AudioEngine(
     val inputDevice: AudioDeviceInfo,
     val outputDevice: AudioDeviceInfo,
     val getVolume: () -> Float,
+    
+    // Order
+    val getEffectOrder: () -> List<EffectType>,
+
     val getDistortion: () -> Float,
     val getEqGains: () -> FloatArray,
     val isDistortionEnabled: () -> Boolean,
@@ -158,6 +163,8 @@ class AudioEngine(
                     val distAmt = getDistortion()
                     val eqGains = getEqGains()
                     
+                    val effectOrder = getEffectOrder()
+                    
                     val distortionEnabled = isDistortionEnabled()
                     val eqEnabled = isEqEnabled()
                     val delayEnabled = isDelayEnabled()
@@ -193,85 +200,40 @@ class AudioEngine(
                     for (i in 0 until read) {
                         var input = chunkBuffer[i].toFloat() / 32768f
                         
-                        // Order: Gate -> Comp -> AutoWah -> Bitcrusher -> EQ -> Dist -> Phaser -> Flanger -> Trem -> Chorus -> Delay -> Reverb -> Limiter
-                        
-                        // 0. Noise Gate (First to remove noise before amplifying it)
-                        if (noiseGateEnabled) {
-                            input = noiseGate.process(input, noiseGateThreshold)
-                        }
-                        
-                        // 1. Compressor
-                        if (compressorEnabled) {
-                            input = compressor.process(input, compParams[0], compParams[1], compParams[2])
-                        }
-                        
-                        // 1.5 AutoWah
-                        if (autoWahEnabled) {
-                            input = autoWah.process(input, autoWahParams[0], autoWahParams[1], autoWahParams[2], autoWahParams[3])
-                        }
-
-                        // 1.8 Bitcrusher
-                        if (bitcrusherEnabled) {
-                            input = bitcrusher.process(input, bitcrusherParams[0], bitcrusherParams[1], bitcrusherParams[2])
-                        }
-
-                        // 2. EQ
-                        if (eqEnabled) {
-                            for (f in eqFilters) input = f.process(input)
-                        }
-                        
-                        // 3. Distortion
-                        if (distortionEnabled && distAmt > 0.01f) { 
-                            val drive = 1f + distAmt * 20f; val x = input * drive; input = (x / (1f + abs(x))) 
-                        }
-
-                        // 3.2 Phaser
-                        if (phaserEnabled) {
-                            input = phaser.process(input, phaserParams[0], phaserParams[1], phaserParams[3], phaserParams[2])
-                        }
-                        
-                        // 3.5 Flanger
-                        if (flangerEnabled) {
-                            input = flanger.process(input, flangerParams[0], flangerParams[1], flangerParams[2], flangerParams[3])
-                        }
-                        
-                        // 4. Tremolo
-                        if (tremoloEnabled) {
-                            input = tremolo.process(input, tremParams[0], tremParams[1])
-                        }
-                        
-                        // 5. Chorus
-                        if (chorusEnabled) {
-                            input = chorus.process(input, chorusParams[0], chorusParams[1], chorusParams[2])
-                        }
-                        
-                        // 6. Delay
-                        if (delayEnabled) {
-                            val delaySamples = (delayParams[0] * sampleRate).toInt().coerceIn(0, maxDelaySamples - 1)
-                            var delayReadPos = delayWritePos - delaySamples
-                            if (delayReadPos < 0) delayReadPos += maxDelaySamples
-                            
-                            val delayedSignal = delayBuffer[delayReadPos]
-                            delayBuffer[delayWritePos] = input + delayedSignal * delayParams[1] // Feedback
-                            
-                            input = input + delayedSignal * delayParams[2] // Mix
-                            
-                            delayWritePos++
-                            if (delayWritePos >= maxDelaySamples) delayWritePos = 0
-                        } else {
-                             delayBuffer[delayWritePos] = input
-                             delayWritePos++
-                             if (delayWritePos >= maxDelaySamples) delayWritePos = 0
-                        }
-                        
-                        // 7. Reverb
-                        if (reverbEnabled) {
-                            input = reverb.process(input, reverbParams[0], reverbParams[1])
-                        }
-                        
-                        // 8. Limiter (Final safeguard)
-                        if (limiterEnabled) {
-                            input = limiter.process(input, limiterThreshold)
+                        for (effect in effectOrder) {
+                            when (effect) {
+                                EffectType.NOISE_GATE -> if (noiseGateEnabled) input = noiseGate.process(input, noiseGateThreshold)
+                                EffectType.COMPRESSOR -> if (compressorEnabled) input = compressor.process(input, compParams[0], compParams[1], compParams[2])
+                                EffectType.AUTO_WAH -> if (autoWahEnabled) input = autoWah.process(input, autoWahParams[0], autoWahParams[1], autoWahParams[2], autoWahParams[3])
+                                EffectType.BITCRUSHER -> if (bitcrusherEnabled) input = bitcrusher.process(input, bitcrusherParams[0], bitcrusherParams[1], bitcrusherParams[2])
+                                EffectType.EQ -> if (eqEnabled) for (f in eqFilters) input = f.process(input)
+                                EffectType.DISTORTION -> if (distortionEnabled && distAmt > 0.01f) { 
+                                    val drive = 1f + distAmt * 20f; val x = input * drive; input = (x / (1f + abs(x))) 
+                                }
+                                EffectType.PHASER -> if (phaserEnabled) input = phaser.process(input, phaserParams[0], phaserParams[1], phaserParams[3], phaserParams[2])
+                                EffectType.FLANGER -> if (flangerEnabled) input = flanger.process(input, flangerParams[0], flangerParams[1], flangerParams[2], flangerParams[3])
+                                EffectType.TREMOLO -> if (tremoloEnabled) input = tremolo.process(input, tremParams[0], tremParams[1])
+                                EffectType.CHORUS -> if (chorusEnabled) input = chorus.process(input, chorusParams[0], chorusParams[1], chorusParams[2])
+                                EffectType.DELAY -> if (delayEnabled) {
+                                    val delaySamples = (delayParams[0] * sampleRate).toInt().coerceIn(0, maxDelaySamples - 1)
+                                    var delayReadPos = delayWritePos - delaySamples
+                                    if (delayReadPos < 0) delayReadPos += maxDelaySamples
+                                    
+                                    val delayedSignal = delayBuffer[delayReadPos]
+                                    delayBuffer[delayWritePos] = input + delayedSignal * delayParams[1] // Feedback
+                                    
+                                    input = input + delayedSignal * delayParams[2] // Mix
+                                    
+                                    delayWritePos++
+                                    if (delayWritePos >= maxDelaySamples) delayWritePos = 0
+                                } else {
+                                     delayBuffer[delayWritePos] = input
+                                     delayWritePos++
+                                     if (delayWritePos >= maxDelaySamples) delayWritePos = 0
+                                }
+                                EffectType.REVERB -> if (reverbEnabled) input = reverb.process(input, reverbParams[0], reverbParams[1])
+                                EffectType.LIMITER -> if (limiterEnabled) input = limiter.process(input, limiterThreshold)
+                            }
                         }
 
                         input *= vol

@@ -25,14 +25,16 @@ data class DspConfig(
     
     val flangerRate: Float = 0.5f, val flangerDepth: Float = 2.0f, val flangerFeedback: Float = 0.5f, val flangerMix: Float = 0.5f, val isFlangerEnabled: Boolean = false,
 
-    // Nuevos efectos
     val phaserRate: Float = 1.0f, val phaserDepth: Float = 0.5f, val phaserFeedback: Float = 0.5f, val phaserMix: Float = 0.5f, val isPhaserEnabled: Boolean = false,
     
     val bitcrusherDepth: Float = 0.5f, val bitcrusherRate: Float = 0.1f, val bitcrusherMix: Float = 1.0f, val isBitcrusherEnabled: Boolean = false,
     
     val limiterThreshold: Float = 0.95f, val isLimiterEnabled: Boolean = false,
     
-    val autoWahDepth: Float = 0.5f, val autoWahRate: Float = 0.5f, val autoWahMix: Float = 0.5f, val autoWahResonance: Float = 0.5f, val isAutoWahEnabled: Boolean = false
+    val autoWahDepth: Float = 0.5f, val autoWahRate: Float = 0.5f, val autoWahMix: Float = 0.5f, val autoWahResonance: Float = 0.5f, val isAutoWahEnabled: Boolean = false,
+    
+    // Lista de efectos en orden
+    val effectOrder: List<EffectType> = emptyList()
 ) {
     fun toJson(): String {
         val json = JSONObject()
@@ -79,7 +81,6 @@ data class DspConfig(
         json.put("flangerMix", flangerMix.toDouble())
         json.put("isFlangerEnabled", isFlangerEnabled)
         
-        // Nuevos efectos JSON
         json.put("phaserRate", phaserRate.toDouble())
         json.put("phaserDepth", phaserDepth.toDouble())
         json.put("phaserFeedback", phaserFeedback.toDouble())
@@ -99,6 +100,11 @@ data class DspConfig(
         json.put("autoWahMix", autoWahMix.toDouble())
         json.put("autoWahResonance", autoWahResonance.toDouble())
         json.put("isAutoWahEnabled", isAutoWahEnabled)
+        
+        // Save order
+        val orderArray = JSONArray()
+        effectOrder.forEach { orderArray.put(it.name) }
+        json.put("effectOrder", orderArray)
         
         return json.toString()
     }
@@ -122,6 +128,16 @@ data class DspConfig(
                 repeat(6) { eqBands.add(0f) }
             }
             val isEqEnabled = json.optBoolean("isEqEnabled", true)
+            
+            val orderArray = json.optJSONArray("effectOrder")
+            val effectOrder = mutableListOf<EffectType>()
+            if (orderArray != null) {
+                for (i in 0 until orderArray.length()) {
+                    try {
+                        effectOrder.add(EffectType.valueOf(orderArray.getString(i)))
+                    } catch(e: Exception) {}
+                }
+            }
             
             return DspConfig(
                 name = name,
@@ -179,7 +195,9 @@ data class DspConfig(
                 autoWahRate = json.optDouble("autoWahRate", 0.5).toFloat(),
                 autoWahMix = json.optDouble("autoWahMix", 0.5).toFloat(),
                 autoWahResonance = json.optDouble("autoWahResonance", 0.5).toFloat(),
-                isAutoWahEnabled = json.optBoolean("isAutoWahEnabled", false)
+                isAutoWahEnabled = json.optBoolean("isAutoWahEnabled", false),
+                
+                effectOrder = effectOrder
             )
         }
     }
